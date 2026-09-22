@@ -13548,7 +13548,7 @@ async def start_health_server():
 
 
 async def main():
-    global HTTP_SESSION, HTTP_API_SEMAPHORE, HTTP_CONNECTOR
+    global HTTP_SESSION, HTTP_API_SEMAPHORE, HTTP_CONNECTOR, DB_CONNECTION, DB_LOCK
     maintenance_task = None
     scheduler_task = None
     hosted_monitor_task = None
