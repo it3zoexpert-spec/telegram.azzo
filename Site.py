@@ -13529,11 +13529,30 @@ def v16_operational_invariant_count():
 # FINAL ENTRY POINT
 # =========================================================
 
+async def start_health_server():
+    """Expose a tiny health endpoint for Render and external monitoring."""
+    app = aiohttp.web.Application()
+
+    async def health(_request):
+        return aiohttp.web.json_response({"ok": True, "service": "telegram-bot"})
+
+    app.router.add_get("/", health)
+    app.router.add_get("/health", health)
+    runner = aiohttp.web.AppRunner(app)
+    await runner.setup()
+    port = int(os.getenv("PORT", "10000"))
+    site = aiohttp.web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    print(f"Health server listening on 0.0.0.0:{port}")
+    return runner
+
+
 async def main():
     global HTTP_SESSION, HTTP_API_SEMAPHORE, HTTP_CONNECTOR
     maintenance_task = None
     scheduler_task = None
     hosted_monitor_task = None
+    health_runner = None
     ensure_token()
     await db_init()
     if IS_CHILD_BOT:
@@ -13568,6 +13587,7 @@ async def main():
 
         # Long polling and webhook mode cannot be used together.
         await api_call("deleteWebhook", data={"drop_pending_updates": "false"}, timeout=15, retries=2)
+        health_runner = await start_health_server()
 
         # Hard fail early for missing core handlers instead of silently
         # swallowing NameError inside the polling loop.
@@ -13612,6 +13632,8 @@ async def main():
                 pass
         if HTTP_SESSION and not HTTP_SESSION.closed:
             await HTTP_SESSION.close()
+        if health_runner:
+            await health_runner.cleanup()
         HTTP_SESSION = None
         HTTP_CONNECTOR = None
         if DB_CONNECTION is not None:
